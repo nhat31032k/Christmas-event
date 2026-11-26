@@ -29,7 +29,7 @@ export const christmasCardConfig: ChristmasCardConfig = {
         "Tay em lạnh rồi nè, để anh nắm giữ cả mùa đông nhé!",
     ],
     letterPages: [
-        "Gửi em giữa đêm Noel se lạnh, cảm ơn em vì suốt một năm qua đã luôn dịu dàng, kiên nhẫn và mang thật nhiều ánh nắng vào những ngày bình thường nhất của anh.",
+        "Gửi em giữa đêm Noel se lạnh, cảm ơn em vì suốt những ngày tháng qua đã luôn dịu dàng, kiên nhẫn và mang thật nhiều ánh nắng vào những ngày bình thường nhất của anh.",
         "Ngoài kia gió đông có thể lạnh, nhưng chỉ cần nghĩ đến nụ cười và những câu chuyện nhỏ xíu của tụi mình, lòng anh lúc nào cũng thấy ấm như cầm một ly cacao nóng.",
         "Chúc em một mùa Giáng Sinh thật bình yên, ngủ ngon mỗi tối, ăn thật nhiều món em thích và luôn cảm nhận được rằng em được thương rất nhiều.",
         "Mong rằng không chỉ Noel này mà thật nhiều mùa đông sau nữa, tụi mình vẫn sẽ cùng nhau đi dưới đèn đường vàng ấm và đón những điều ngọt ngào nhất.",
