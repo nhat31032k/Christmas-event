@@ -21,43 +21,150 @@
   --font-mono: var(--font-mono-vn), monospace;
 }
 
-html,
-body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  overflow-x: clip;
-  background-color: var(--sky-deep);
-  color: var(--snow-white);
-  font-family: var(--font-mono-vn), monospace;
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
+@layer base {
+  html,
+  body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    overflow-x: clip;
+    overscroll-behavior: none;
+    background-color: var(--sky-deep);
+    color: var(--snow-white);
+    font-family: var(--font-mono-vn), monospace;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
 }
 
-.font-pixel-display {
+@layer components {
+  .anime-sky-gradient {
+    background: linear-gradient(
+      180deg,
+      var(--sky-deep) 0%,
+      var(--sky-mid) 56%,
+      var(--sky-horizon) 100%
+    );
+  }
+
+  .vn-panel {
+    background: var(--vn-bg);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow:
+      0 -2px 0 0 var(--cream-ink),
+      0 2px 0 0 var(--cream-ink),
+      -2px 0 0 0 var(--cream-ink),
+      2px 0 0 0 var(--cream-ink),
+      inset 0 0 0 2px rgba(253, 224, 71, 0.24),
+      0 6px 0 0 rgba(11, 16, 38, 0.72);
+  }
+
+  .vn-panel-gold {
+    background: rgba(17, 24, 54, 0.88);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow:
+      0 -2px 0 0 var(--lamp-gold),
+      0 2px 0 0 var(--lamp-gold),
+      -2px 0 0 0 var(--lamp-gold),
+      2px 0 0 0 var(--lamp-gold),
+      inset 0 0 0 2px rgba(254, 243, 199, 0.28),
+      0 6px 0 0 rgba(11, 16, 38, 0.75);
+  }
+
+  .pixel-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-width: 44px;
+    min-height: 44px;
+    background-color: var(--rose-warm);
+    color: var(--snow-white);
+    font-weight: 700;
+    box-shadow:
+      0 -2px 0 0 var(--cream-ink),
+      0 2px 0 0 var(--cream-ink),
+      -2px 0 0 0 var(--cream-ink),
+      2px 0 0 0 var(--cream-ink),
+      inset 0 -4px 0 0 var(--rose-deep),
+      0 5px 0 0 rgba(11, 16, 38, 0.7);
+    transition: transform 90ms steps(2), filter 120ms ease;
+    cursor: pointer;
+  }
+
+  .pixel-btn:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  .pixel-btn:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow:
+      0 -2px 0 0 var(--cream-ink),
+      0 2px 0 0 var(--cream-ink),
+      -2px 0 0 0 var(--cream-ink),
+      2px 0 0 0 var(--cream-ink),
+      inset 0 -2px 0 0 var(--rose-deep),
+      0 2px 0 0 rgba(11, 16, 38, 0.7);
+  }
+
+  .pixel-btn:focus-visible,
+  .pixel-btn-ghost:focus-visible {
+    outline: 2px solid var(--lamp-gold);
+    outline-offset: 4px;
+  }
+
+  .pixel-btn:disabled,
+  .pixel-btn-ghost:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .pixel-btn-ghost {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    background-color: rgba(15, 23, 56, 0.84);
+    color: var(--cream-ink);
+    box-shadow:
+      0 -2px 0 0 rgba(254, 243, 199, 0.85),
+      0 2px 0 0 rgba(254, 243, 199, 0.85),
+      -2px 0 0 0 rgba(254, 243, 199, 0.85),
+      2px 0 0 0 rgba(254, 243, 199, 0.85),
+      inset 0 -3px 0 0 rgba(11, 16, 38, 0.8);
+    transition: transform 90ms steps(2), background-color 120ms ease;
+    cursor: pointer;
+  }
+
+  .pixel-btn-ghost:hover:not(:disabled) {
+    background-color: rgba(49, 46, 129, 0.9);
+  }
+
+  .pixel-btn-ghost:active:not(:disabled) {
+    transform: translateY(2px);
+  }
+}
+
+/* Custom pixel utilities (compiled into @layer utilities with variant support) */
+@utility font-pixel-display {
   font-family: var(--font-pixel), var(--font-mono-vn), monospace;
 }
 
-.font-vn-body {
+@utility font-vn-body {
   font-family: var(--font-mono-vn), monospace;
 }
 
-.pixelated {
-  image-rendering: pixelated;
+@utility pixelated {
   image-rendering: crisp-edges;
+  image-rendering: pixelated;
 }
 
-.anime-sky-gradient {
-  background: linear-gradient(
-    180deg,
-    var(--sky-deep) 0%,
-    var(--sky-mid) 56%,
-    var(--sky-horizon) 100%
-  );
-}
-
-/* Stepped 32-bit Visual Novel frame border (supports responsive variants like sm:pixel-frame) */
 @utility pixel-frame {
   box-shadow:
     0 -3px 0 0 var(--cream-ink),
@@ -68,124 +175,18 @@ body {
     0 0 32px rgba(253, 224, 71, 0.14);
 }
 
-.vn-panel {
-  background: var(--vn-bg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow:
-    0 -2px 0 0 var(--cream-ink),
-    0 2px 0 0 var(--cream-ink),
-    -2px 0 0 0 var(--cream-ink),
-    2px 0 0 0 var(--cream-ink),
-    inset 0 0 0 2px rgba(253, 224, 71, 0.24),
-    0 6px 0 0 rgba(11, 16, 38, 0.72);
-}
-
-.vn-panel-gold {
-  background: rgba(17, 24, 54, 0.88);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow:
-    0 -2px 0 0 var(--lamp-gold),
-    0 2px 0 0 var(--lamp-gold),
-    -2px 0 0 0 var(--lamp-gold),
-    2px 0 0 0 var(--lamp-gold),
-    inset 0 0 0 2px rgba(254, 243, 199, 0.28),
-    0 6px 0 0 rgba(11, 16, 38, 0.75);
-}
-
-.pixel-btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-width: 44px;
-  min-height: 44px;
-  background-color: var(--rose-warm);
-  color: var(--snow-white);
-  font-weight: 700;
-  box-shadow:
-    0 -2px 0 0 var(--cream-ink),
-    0 2px 0 0 var(--cream-ink),
-    -2px 0 0 0 var(--cream-ink),
-    2px 0 0 0 var(--cream-ink),
-    inset 0 -4px 0 0 var(--rose-deep),
-    0 5px 0 0 rgba(11, 16, 38, 0.7);
-  transition: transform 90ms steps(2), filter 120ms ease;
-  cursor: pointer;
-}
-
-.pixel-btn:hover:not(:disabled) {
-  filter: brightness(1.08);
-}
-
-.pixel-btn:active:not(:disabled) {
-  transform: translateY(2px);
-  box-shadow:
-    0 -2px 0 0 var(--cream-ink),
-    0 2px 0 0 var(--cream-ink),
-    -2px 0 0 0 var(--cream-ink),
-    2px 0 0 0 var(--cream-ink),
-    inset 0 -2px 0 0 var(--rose-deep),
-    0 2px 0 0 rgba(11, 16, 38, 0.7);
-}
-
-.pixel-btn:focus-visible,
-.pixel-btn-ghost:focus-visible {
-  outline: 2px solid var(--lamp-gold);
-  outline-offset: 4px;
-}
-
-.pixel-btn:disabled,
-.pixel-btn-ghost:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.pixel-btn-ghost {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
-  background-color: rgba(15, 23, 56, 0.84);
-  color: var(--cream-ink);
-  box-shadow:
-    0 -2px 0 0 rgba(254, 243, 199, 0.85),
-    0 2px 0 0 rgba(254, 243, 199, 0.85),
-    -2px 0 0 0 rgba(254, 243, 199, 0.85),
-    2px 0 0 0 rgba(254, 243, 199, 0.85),
-    inset 0 -3px 0 0 rgba(11, 16, 38, 0.8);
-  transition: transform 90ms steps(2), background-color 120ms ease;
-  cursor: pointer;
-}
-
-.pixel-btn-ghost:hover:not(:disabled) {
-  background-color: rgba(49, 46, 129, 0.9);
-}
-
-.pixel-btn-ghost:active:not(:disabled) {
-  transform: translateY(2px);
-}
-
-/* 3D card flip helpers */
-.perspective-1000 {
+/* 3D card flip helpers (relies on Tailwind v4 native rotate-y-180) */
+@utility perspective-1000 {
   perspective: 1000px;
 }
 
-.preserve-3d {
+@utility preserve-3d {
   transform-style: preserve-3d;
 }
 
-.backface-hidden {
+@utility backface-hidden {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-}
-
-.rotate-y-180 {
-  transform: rotateY(180deg);
 }
 
 @keyframes pixel-blink {
@@ -193,22 +194,21 @@ body {
   50%, 100% { opacity: 0.15; }
 }
 
-.animate-pixel-blink {
-  animation: pixel-blink 1s steps(2, end) infinite;
-}
-
 @keyframes pixel-float {
   0%, 100% { transform: translateY(0px); }
   50% { transform: translateY(-6px); }
 }
 
-.animate-pixel-float {
-  animation: pixel-float 2.8s ease-in-out infinite;
+@utility animate-pixel-blink {
+  animation: pixel-blink 1s steps(2, end) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .animate-pixel-float,
-  .animate-pixel-blink {
-    animation: none !important;
+@utility animate-pixel-float {
+  animation: pixel-float 2.8s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
   }
 }
