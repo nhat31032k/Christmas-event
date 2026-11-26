@@ -21,7 +21,6 @@ export function ChiptuneMusicBox({
       type="button"
       onClick={onToggle}
       aria-label={label}
-      aria-pressed={isActive}
       title={label}
       className={`pixel-btn-ghost h-11 w-11 shrink-0 p-0${className ? ` ${className}` : ""}`}
     >

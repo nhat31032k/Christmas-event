@@ -1,4 +1,7 @@
+import * as React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ChiptuneMusicBox } from "../../components/ChiptuneMusicBox";
 import { MusicBoxEngine, type SfxType } from "../audioEngine";
 
 interface MockAudioParam {
@@ -13,6 +16,7 @@ interface MockAudioParam {
 interface MockOscillator {
   type: OscillatorType;
   frequency: MockAudioParam;
+  onended: ((this: AudioScheduledSourceNode, ev: Event) => unknown) | null;
   connect: ReturnType<typeof vi.fn>;
   disconnect: ReturnType<typeof vi.fn>;
   start: ReturnType<typeof vi.fn>;
@@ -33,10 +37,12 @@ interface MockBiquadFilterNode {
   disconnect: ReturnType<typeof vi.fn>;
 }
 
+type MockContextState = AudioContextState | "interrupted";
+
 interface MockAudioContextHarness {
   ctx: AudioContext;
   setCurrentTime: (time: number) => void;
-  setState: (state: AudioContextState) => void;
+  setState: (state: MockContextState) => void;
   oscillators: MockOscillator[];
   gains: MockGainNode[];
   filters: MockBiquadFilterNode[];
@@ -73,12 +79,12 @@ function createMockAudioParam(initial = 0): MockAudioParam {
 }
 
 function createMockAudioContext(options?: {
-  state?: AudioContextState;
+  state?: MockContextState;
   resumeReject?: boolean;
   closeReject?: boolean;
 }): MockAudioContextHarness {
   let currentTime = 0;
-  let state: AudioContextState = options?.state ?? "running";
+  let state: MockContextState = options?.state ?? "running";
   const oscillators: MockOscillator[] = [];
   const gains: MockGainNode[] = [];
   const filters: MockBiquadFilterNode[] = [];
@@ -114,6 +120,7 @@ function createMockAudioContext(options?: {
       const osc: MockOscillator = {
         type: "sine",
         frequency: createMockAudioParam(440),
+        onended: null,
         connect: vi.fn(),
         disconnect: vi.fn(),
         start: vi.fn(),
@@ -149,7 +156,7 @@ function createMockAudioContext(options?: {
     setCurrentTime: (t: number) => {
       currentTime = t;
     },
-    setState: (s: AudioContextState) => {
+    setState: (s: MockContextState) => {
       state = s;
     },
     oscillators,
@@ -398,6 +405,110 @@ describe("MusicBoxEngine", () => {
     engine2.dispose();
   });
 
+  it("allocates zero oscillators during scheduler ticks while muted and preserves song position on unmute", () => {
+    const harness = createMockAudioContext();
+    const engine = new MusicBoxEngine(() => harness.ctx);
+
+    engine.start();
+    const oscCountAfterStart = harness.oscillators.length;
+    const gainCountAfterStart = harness.gains.length;
+
+    engine.setMuted(true);
+
+    // Advance 105 ticks * 80ms = 8.40s (advances through steps 1..23 to Measure 5, step 24)
+    let simTime = 0;
+    for (let i = 0; i < 105; i++) {
+      simTime = Number((simTime + 0.08).toFixed(4));
+      harness.setCurrentTime(simTime);
+      vi.advanceTimersByTime(80);
+    }
+
+    // Zero oscillators or voice gains allocated while muted
+    expect(harness.oscillators.length).toBe(oscCountAfterStart);
+    expect(harness.gains.length).toBe(gainCountAfterStart);
+
+    // Unmuting resumes from Measure 5 ("All is calm": D5 = 587.33 Hz, G2 = 98.0 Hz), not Measure 1
+    engine.setMuted(false);
+    simTime = Number((simTime + 0.08).toFixed(4));
+    harness.setCurrentTime(simTime);
+    vi.advanceTimersByTime(80);
+
+    const resumedOscs = harness.oscillators.slice(oscCountAfterStart);
+    expect(resumedOscs.length).toBeGreaterThanOrEqual(3);
+    expect(
+      resumedOscs.some(
+        (o) => o.type === "triangle" && Math.abs(o.frequency.value - 587.33) < 0.5,
+      ),
+    ).toBe(true);
+    expect(
+      resumedOscs.some(
+        (o) => o.type === "sine" && Math.abs(o.frequency.value - 98.0) < 0.5,
+      ),
+    ).toBe(true);
+
+    engine.dispose();
+  });
+
+  it("recovers from currentTime stall jumps without scheduling notes in the past", () => {
+    const harness = createMockAudioContext();
+    const engine = new MusicBoxEngine(() => harness.ctx);
+
+    engine.start();
+
+    // Advance normally past empty step 1 so stepIndex = 2 (which schedules accompaniment E3 at ~0.734s)
+    harness.setCurrentTime(0.24);
+    vi.advanceTimersByTime(80);
+    const countBeforeShortStall = harness.oscillators.length;
+
+    // Sub-500ms stall jump: nextNoteTime (~0.734s) is ~216ms behind currentTime (0.95s)
+    harness.setCurrentTime(0.95);
+    vi.advanceTimersByTime(80);
+
+    const afterShortStall = harness.oscillators.slice(countBeforeShortStall);
+    expect(afterShortStall.length).toBeGreaterThan(0);
+    for (const osc of afterShortStall) {
+      const scheduledStart = osc.start.mock.calls[0][0] as number;
+      expect(scheduledStart).toBeGreaterThanOrEqual(0.95);
+    }
+
+    // Multi-second background tab stall jump (reset to step 0 / chord downbeat by advancing to a voiced step)
+    const countBeforeLongStall = harness.oscillators.length;
+    harness.setCurrentTime(4.2);
+    vi.advanceTimersByTime(80);
+    harness.setCurrentTime(4.56);
+    vi.advanceTimersByTime(80);
+
+    const afterLongStall = harness.oscillators.slice(countBeforeLongStall);
+    expect(afterLongStall.length).toBeGreaterThan(0);
+    for (const osc of afterLongStall) {
+      const scheduledStart = osc.start.mock.calls[0][0] as number;
+      expect(scheduledStart).toBeGreaterThanOrEqual(4.2);
+    }
+
+    engine.dispose();
+  });
+
+  it("resumes an iOS Safari 'interrupted' AudioContext on start, unmute, and playSfx", () => {
+    const harness = createMockAudioContext({ state: "interrupted" });
+    const engine = new MusicBoxEngine(() => harness.ctx);
+
+    engine.start();
+    expect(harness.resume).toHaveBeenCalledTimes(1);
+
+    // Simulate iOS screen lock / app switch interrupting the context while muted
+    engine.setMuted(true);
+    harness.setState("interrupted");
+    engine.toggleMute();
+    expect(harness.resume).toHaveBeenCalledTimes(2);
+
+    // Simulate another iOS interruption before SFX playback
+    harness.setState("interrupted");
+    engine.playSfx("click");
+    expect(harness.resume).toHaveBeenCalledTimes(3);
+
+    engine.dispose();
+  });
+
   it("advances scheduler cleanly across full melody loop and stops scheduling after dispose()", async () => {
     const harness = createMockAudioContext();
     const engine = new MusicBoxEngine(() => harness.ctx);
@@ -441,13 +552,71 @@ describe("MusicBoxEngine", () => {
     await Promise.resolve();
   });
 
+  it("disconnects completed voice nodes on osc.onended and disconnects filter + masterGain before close on dispose()", () => {
+    const harness = createMockAudioContext();
+    const callOrder: string[] = [];
+    harness.close.mockImplementation(() => {
+      callOrder.push("ctx.close");
+      return Promise.resolve();
+    });
+
+    const engine = new MusicBoxEngine(() => harness.ctx);
+    engine.playSfx("click");
+
+    expect(harness.filters.length).toBe(1);
+    expect(harness.gains.length).toBe(2); // gains[0] = masterGain, gains[1] = voice gain
+    expect(harness.oscillators.length).toBe(1);
+
+    const filter = harness.filters[0];
+    const masterGain = harness.gains[0];
+    const voiceGain = harness.gains[1];
+    const osc = harness.oscillators[0];
+
+    filter.disconnect.mockImplementation(() => {
+      callOrder.push("filter.disconnect");
+    });
+    masterGain.disconnect.mockImplementation(() => {
+      callOrder.push("masterGain.disconnect");
+    });
+
+    expect(typeof osc.onended).toBe("function");
+    expect(osc.disconnect).not.toHaveBeenCalled();
+    expect(voiceGain.disconnect).not.toHaveBeenCalled();
+
+    osc.onended?.call(osc as unknown as AudioScheduledSourceNode, {} as Event);
+    expect(osc.disconnect).toHaveBeenCalledTimes(1);
+    expect(voiceGain.disconnect).toHaveBeenCalledTimes(1);
+
+    // Also swallows disconnect errors on already-disposed contexts
+    osc.disconnect.mockImplementationOnce(() => {
+      throw new Error("Already disconnected");
+    });
+    expect(() =>
+      osc.onended?.call(osc as unknown as AudioScheduledSourceNode, {} as Event),
+    ).not.toThrow();
+
+    engine.dispose();
+    expect(filter.disconnect).toHaveBeenCalledTimes(1);
+    expect(masterGain.disconnect).toHaveBeenCalledTimes(1);
+    expect(harness.close).toHaveBeenCalledTimes(1);
+    expect(callOrder).toEqual([
+      "filter.disconnect",
+      "masterGain.disconnect",
+      "ctx.close",
+    ]);
+  });
+
   it("ignores rejected AudioContext.close() during dispose()", async () => {
     const harness = createMockAudioContext({ closeReject: true });
     const engine = new MusicBoxEngine(() => harness.ctx);
 
     engine.start();
+    harness.filters[0].disconnect.mockImplementationOnce(() => {
+      throw new Error("Filter disconnect error");
+    });
     expect(() => engine.dispose()).not.toThrow();
     expect(engine.isPlaying()).toBe(false);
+    expect(harness.gains[0].disconnect).toHaveBeenCalledTimes(1);
     expect(harness.close).toHaveBeenCalledTimes(1);
 
     await Promise.resolve();
@@ -473,5 +642,45 @@ describe("MusicBoxEngine", () => {
     expect(ssrEngine.isPlaying()).toBe(false);
     expect(() => ssrEngine.playSfx("slide")).not.toThrow();
     expect(() => ssrEngine.dispose()).not.toThrow();
+  });
+});
+
+describe("ChiptuneMusicBox", () => {
+  it("uses dynamic Vietnamese action aria-label and title without aria-pressed", () => {
+    // tsconfig uses jsx: "preserve" for Next.js, so Vitest esbuild emits classic React.createElement
+    (globalThis as unknown as { React?: typeof React }).React = React;
+
+    const activeHtml = renderToStaticMarkup(
+      React.createElement(ChiptuneMusicBox, {
+        isPlaying: true,
+        isMuted: false,
+        onToggle: () => {},
+      }),
+    );
+    expect(activeHtml).toContain('aria-label="Tắt nhạc nền"');
+    expect(activeHtml).toContain('title="Tắt nhạc nền"');
+    expect(activeHtml).not.toContain("aria-pressed");
+
+    const mutedHtml = renderToStaticMarkup(
+      React.createElement(ChiptuneMusicBox, {
+        isPlaying: true,
+        isMuted: true,
+        onToggle: () => {},
+      }),
+    );
+    expect(mutedHtml).toContain('aria-label="Bật nhạc nền"');
+    expect(mutedHtml).toContain('title="Bật nhạc nền"');
+    expect(mutedHtml).not.toContain("aria-pressed");
+
+    const stoppedHtml = renderToStaticMarkup(
+      React.createElement(ChiptuneMusicBox, {
+        isPlaying: false,
+        isMuted: false,
+        onToggle: () => {},
+      }),
+    );
+    expect(stoppedHtml).toContain('aria-label="Bật nhạc nền"');
+    expect(stoppedHtml).toContain('title="Bật nhạc nền"');
+    expect(stoppedHtml).not.toContain("aria-pressed");
   });
 });

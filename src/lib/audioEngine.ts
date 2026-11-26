@@ -527,9 +527,23 @@ export class MusicBoxEngine {
     }
 
     const ctx = this.ctx;
+    const filter = this.filter;
+    const masterGain = this.masterGain;
     this.ctx = null;
     this.masterGain = null;
     this.filter = null;
+
+    try {
+      filter?.disconnect?.();
+    } catch {
+      // Ignore disconnect errors on disposed context
+    }
+
+    try {
+      masterGain?.disconnect?.();
+    } catch {
+      // Ignore disconnect errors on disposed context
+    }
 
     if (ctx) {
       try {
@@ -599,7 +613,8 @@ export class MusicBoxEngine {
 
   private resumeIfSuspended(ctx: AudioContext): void {
     try {
-      if (ctx.state === "suspended") {
+      const state = ctx.state as string;
+      if (state === "suspended" || state === "interrupted") {
         const result = ctx.resume();
         if (result && typeof result.catch === "function") {
           result.catch(() => {
@@ -620,8 +635,8 @@ export class MusicBoxEngine {
     try {
       const now = this.ctx.currentTime;
 
-      // Guard against huge bursts if the tab was backgrounded
-      if (this.nextNoteTime < now - 0.5) {
+      // Guard against past-timestamp scheduling if main thread stalled or tab was backgrounded
+      if (this.nextNoteTime < now) {
         this.nextNoteTime = now + 0.02;
       }
 
@@ -629,23 +644,25 @@ export class MusicBoxEngine {
         const step = SILENT_NIGHT_STEPS[this.stepIndex];
         const scheduledAt = this.nextNoteTime;
 
-        if (step.melody) {
-          this.scheduleMusicBoxMelody(
-            this.ctx,
-            step.melody.freq,
-            scheduledAt,
-            step.melody.durationSec,
-          );
-        }
+        if (!this.muted) {
+          if (step.melody) {
+            this.scheduleMusicBoxMelody(
+              this.ctx,
+              step.melody.freq,
+              scheduledAt,
+              step.melody.durationSec,
+            );
+          }
 
-        if (step.accompaniment) {
-          this.scheduleAccompaniment(
-            this.ctx,
-            step.accompaniment.freq,
-            scheduledAt,
-            step.accompaniment.durationSec,
-            step.accompaniment.isBass,
-          );
+          if (step.accompaniment) {
+            this.scheduleAccompaniment(
+              this.ctx,
+              step.accompaniment.freq,
+              scheduledAt,
+              step.accompaniment.durationSec,
+              step.accompaniment.isBass,
+            );
+          }
         }
 
         this.nextNoteTime += EIGHTH_STEP_SEC;
@@ -744,6 +761,15 @@ export class MusicBoxEngine {
 
     osc.connect(gain);
     gain.connect(this.filter);
+
+    osc.onended = () => {
+      try {
+        osc.disconnect?.();
+        gain.disconnect?.();
+      } catch {
+        // Ignore disconnect errors on disposed context
+      }
+    };
 
     osc.start(startTime);
     osc.stop(decayEnd + 0.02);
